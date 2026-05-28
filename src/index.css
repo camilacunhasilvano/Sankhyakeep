@@ -1,0 +1,52 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap');
+@import "tailwindcss";
+
+@variant dark (&:where(.dark, .dark *));
+
+@theme {
+  --font-sans: "Inter", ui-sans-serif, system-ui, sans-serif;
+  --font-mono: "JetBrains Mono", ui-monospace, SFMono-Regular, monospace;
+  
+  --color-elegant-bg: #0B0C10;
+  --color-elegant-card: #1F2833;
+  --color-elegant-teal: #45A29E;
+  --color-elegant-cyan: #66FCF1;
+  --color-elegant-grey: #C5C6C7;
+}
+
+body {
+  font-family: var(--font-sans);
+}
+
+/* Custom styles for radial gradient background */
+.radial-dots {
+  background-color: #f8fafc;
+  background-image: radial-gradient(#cbd5e1 1.2px, transparent 1.2px);
+  background-size: 24px 24px;
+}
+
+.dark .radial-dots, html.dark .radial-dots {
+  background-color: #0B0C10;
+  background-image: radial-gradient(#1F2833 1.2px, transparent 1.2px);
+  background-size: 24px 24px;
+}
+
+/* Scrollbar customization for Elegant Dark */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: #0B0C10;
+}
+
+::-webkit-scrollbar-thumb {
+  background: #1F2833;
+  border-radius: 4px;
+  border: 2px solid #0B0C10;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: #45A29E;
+}

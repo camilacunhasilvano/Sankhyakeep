@@ -1,0 +1,6 @@
+{
+  "name": "Sankhya Keep",
+  "description": "Central privada de conhecimento e anotações para colaboradores da Sankhya, com importador do Google Keep e refatoração com IA.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

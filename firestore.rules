@@ -1,0 +1,174 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    
+    // 1. Global safety net catch-all
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    // Shared Helper functions
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isSankhyaEmail(email) {
+      return email.matches('.*@sankhya\\.com$') || 
+             email.matches('.*@sankhya\\.com\\.br$') || 
+             email == 'camilahcunha2013@gmail.com';
+    }
+
+    function isSankhyaUser() {
+      return isSignedIn() && 
+             request.auth.token.email_verified == true && 
+             isSankhyaEmail(request.auth.token.email);
+    }
+
+    function isValidId(id) {
+      return id is string && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$');
+    }
+
+    function incoming() {
+      return request.resource.data;
+    }
+
+    function existing() {
+      return resource.data;
+    }
+
+    // Database role check
+    function getUserRole() {
+      return exists(/databases/$(database)/documents/users/$(request.auth.uid))
+        ? get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role
+        : 'editor'; // default role
+    }
+
+    function isAdmin() {
+      return isSankhyaUser() && (
+        request.auth.token.email == 'camila.silvano@sankhya.com.br' ||
+        request.auth.token.email == 'camila.silvano@sankhya.com' ||
+        request.auth.token.email == 'camilahcunha2013@gmail.com' ||
+        (exists(/databases/$(database)/documents/users/$(request.auth.uid)) && 
+         get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin')
+      );
+    }
+
+    function isEditor() {
+      return isSankhyaUser() && (
+        isAdmin() || 
+        !exists(/databases/$(database)/documents/users/$(request.auth.uid)) ||
+        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'editor'
+      );
+    }
+
+    // Entity validator: User Profile
+    function isValidUser(data) {
+      return data.keys().hasAll(['id', 'email', 'name', 'role']) &&
+             data.keys().size() == 4 &&
+             data.id == request.auth.uid &&
+             data.email == request.auth.token.email &&
+             data.name is string && data.name.size() > 0 && data.name.size() <= 100 &&
+             data.role in ['admin', 'editor', 'viewer'];
+    }
+
+    // Entity validator: Topic
+    function isValidTopic(data) {
+      return data.keys().hasAll(['id', 'title', 'parentId', 'createdBy', 'isFavorite', 'visibility']) &&
+             data.keys().size() == 6 &&
+             data.id is string && data.id.size() <= 128 &&
+             data.title is string && data.title.size() > 0 && data.title.size() <= 100 &&
+             (data.parentId == null || (data.parentId is string && data.parentId.size() <= 128)) &&
+             data.createdBy == request.auth.uid &&
+             data.isFavorite is bool &&
+             data.visibility in ['public', 'internal'];
+    }
+
+    // Entity validator: Note
+    function isValidNote(data) {
+      return data.keys().hasAll(['id', 'title', 'contentMarkdown', 'checklist', 'attachments', 'tags', 'color', 'pinned', 'archived', 'trashed', 'topicId', 'isPublic', 'createdBy', 'createdByEmail', 'version', 'createdAt', 'updatedAt']) &&
+             // Note: can also have optional 'forkedFromId'
+             (data.keys().size() == 17 || (data.keys().size() == 18 && data.keys().hasAll(['forkedFromId']))) &&
+             data.id is string && data.id.size() <= 128 &&
+             data.title is string && data.title.size() <= 200 &&
+             data.contentMarkdown is string && data.contentMarkdown.size() <= 50000 &&
+             data.checklist is list && data.checklist.size() <= 200 &&
+             data.attachments is list && data.attachments.size() <= 50 &&
+             data.tags is list && data.tags.size() <= 20 &&
+             data.color is string && data.color.size() <= 32 &&
+             data.pinned is bool &&
+             data.archived is bool &&
+             data.trashed is bool &&
+             (data.topicId == null || (data.topicId is string && data.topicId.size() <= 128)) &&
+             data.isPublic is bool &&
+             data.createdBy is string && data.createdBy.size() <= 128 &&
+             data.createdByEmail is string && data.createdByEmail.size() <= 128 &&
+             data.version is int && data.version >= 1 &&
+             data.createdAt is string &&
+             data.updatedAt is string;
+    }
+
+    // Entity validator: Note Version
+    function isValidNoteVersion(data) {
+      return data.keys().hasAll(['noteId', 'version', 'contentMarkdown', 'checklist', 'changedBy', 'changedAt']) &&
+             data.keys().size() == 6 &&
+             data.noteId is string && data.noteId.size() <= 128 &&
+             data.version is int && data.version >= 1 &&
+             data.contentMarkdown is string && data.contentMarkdown.size() <= 50000 &&
+             data.checklist is list &&
+             data.changedBy is string && data.changedBy.size() <= 128 &&
+             data.changedAt is string;
+    }
+
+    // 2. Users collection rules
+    match /users/{userId} {
+      allow get: if isSankhyaUser();
+      allow create: if isSankhyaUser() && isValidId(userId) && userId == request.auth.uid && isValidUser(incoming());
+      allow update: if isSankhyaUser() && isValidId(userId) && userId == request.auth.uid && isValidUser(incoming()) && (
+        // Prevent changing roles except by admin or self-elevate blocks
+        (!incoming().diff(existing()).affectedKeys().hasAny(['role'])) || isAdmin()
+      );
+      allow delete: if isAdmin();
+    }
+
+    // 3. Topics collection rules
+    match /topics/{topicId} {
+      allow get: if isSankhyaUser();
+      allow list: if isSankhyaUser();
+      allow create: if isValidId(topicId) && isEditor() && isValidTopic(incoming());
+      allow update: if isValidId(topicId) && isEditor() && isValidTopic(incoming()) && (
+        existing().createdBy == request.auth.uid || isAdmin()
+      );
+      allow delete: if isValidId(topicId) && (isEditor() && (existing().createdBy == request.auth.uid || isAdmin()));
+    }
+
+    // 4. Notes collection rules
+    match /notes/{noteId} {
+      // Secure read operations
+      allow get: if isSankhyaUser() && (existing().isPublic == true || existing().createdBy == request.auth.uid || isAdmin());
+      allow list: if isSankhyaUser() && (resource.data.isPublic == true || resource.data.createdBy == request.auth.uid || isAdmin());
+
+      // Write operations
+      allow create: if isValidId(noteId) && isEditor() && isValidNote(incoming()) && (
+        incoming().createdBy == request.auth.uid
+      );
+      allow update: if isValidId(noteId) && isEditor() && isValidNote(incoming()) && (
+        existing().createdBy == request.auth.uid || isAdmin()
+      );
+      allow delete: if isValidId(noteId) && (existing().createdBy == request.auth.uid || isAdmin());
+
+      // 5. Note Versions subcollection rules
+      match /versions/{versionId} {
+        allow get, list: if isSankhyaUser() && (
+          get(/databases/$(database)/documents/notes/$(noteId)).data.isPublic == true ||
+          get(/databases/$(database)/documents/notes/$(noteId)).data.createdBy == request.auth.uid ||
+          isAdmin()
+        );
+        allow create: if isValidId(versionId) && isEditor() && isValidNoteVersion(incoming()) && (
+          get(/databases/$(database)/documents/notes/$(noteId)).data.createdBy == request.auth.uid ||
+          isAdmin()
+        );
+        allow update, delete: if isAdmin();
+      }
+    }
+  }
+}

@@ -1,0 +1,112 @@
+{
+  "entities": {
+    "user": {
+      "title": "User Profile",
+      "description": "Private profile of a registered Sankhya employee.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "description": "Equal to the Auth User UID." },
+        "email": { "type": "string", "format": "email", "description": "Corporate email address ending in @sankhya.com or @sankhya.com.br." },
+        "name": { "type": "string", "description": "Collaborator display name." },
+        "role": { "type": "string", "enum": ["admin", "editor", "viewer"], "description": "Access level of the user." }
+      },
+      "required": ["id", "email", "name", "role"]
+    },
+    "topic": {
+      "title": "Topic",
+      "description": "A category or tag structure to organize notes.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "title": { "type": "string" },
+        "parentId": { "type": "string", "description": "ID of parent topic or null." },
+        "createdBy": { "type": "string", "description": "UID of user who created this topic." },
+        "isFavorite": { "type": "boolean" },
+        "visibility": { "type": "string", "enum": ["public", "internal"] }
+      },
+      "required": ["id", "title", "createdBy", "isFavorite", "visibility"]
+    },
+    "note": {
+      "title": "Note",
+      "description": "A markdown note or checklist item.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "title": { "type": "string" },
+        "contentMarkdown": { "type": "string" },
+        "checklist": {
+          "type": "array",
+          "description": "Serialized checklist items."
+        },
+        "attachments": {
+          "type": "array"
+        },
+        "tags": {
+          "type": "array"
+        },
+        "color": { "type": "string" },
+        "pinned": { "type": "boolean" },
+        "archived": { "type": "boolean" },
+        "trashed": { "type": "boolean" },
+        "topicId": { "type": "string" },
+        "isPublic": { "type": "boolean" },
+        "createdBy": { "type": "string" },
+        "createdByEmail": { "type": "string" },
+        "forkedFromId": { "type": "string" },
+        "version": { "type": "integer" },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": [
+        "id",
+        "title",
+        "contentMarkdown",
+        "checklist",
+        "attachments",
+        "tags",
+        "color",
+        "pinned",
+        "archived",
+        "trashed",
+        "isPublic",
+        "createdBy",
+        "createdByEmail",
+        "version",
+        "createdAt",
+        "updatedAt"
+      ]
+    },
+    "noteVersion": {
+      "title": "Note Version",
+      "description": "Historical control log of edits on a note.",
+      "type": "object",
+      "properties": {
+        "noteId": { "type": "string" },
+        "version": { "type": "integer" },
+        "contentMarkdown": { "type": "string" },
+        "checklist": { "type": "array" },
+        "changedBy": { "type": "string" },
+        "changedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["noteId", "version", "contentMarkdown", "checklist", "changedBy", "changedAt"]
+    }
+  },
+  "firestore": {
+    "users/{userId}": {
+      "schema": "user",
+      "description": "Database representation of a logged-in user profile."
+    },
+    "topics/{topicId}": {
+      "schema": "topic",
+      "description": "Directory structure representing root categories and sub-categories."
+    },
+    "notes/{noteId}": {
+      "schema": "note",
+      "description": "Private or shared knowledge cards."
+    },
+    "notes/{noteId}/versions/{versionId}": {
+      "schema": "noteVersion",
+      "description": "Subcollection storing previous revisions of a specific note."
+    }
+  }
+}
